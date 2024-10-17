@@ -34,8 +34,9 @@ img {
 
 
 body {
+    padding: 1em;
     background-color: #4A3267;
     display: flex;
-    justify-content: center;
+    justify-content: left;
     align-items: center;
 }

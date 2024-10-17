@@ -22,10 +22,10 @@ const game = new Phaser.Game(config);
 function preload() {
     this.load.image('map', 'images/map.webp');
     this.load.image('locomotive', 'images/locomotive.png');
-    this.load.image('train1', 'images/train1.png');
-    this.load.image('train2', 'images/train2.png');
-    this.load.image('train3', 'images/train3.png');
-    this.load.image('train4', 'images/train4.png');
+    this.load.image('train1', 'images/train-1.png');
+    this.load.image('train2', 'images/train-2.png');
+    this.load.image('train3', 'images/train-3.png');
+    this.load.image('train4', 'images/train-4.png');
 }
 
 function create() {
@@ -37,7 +37,7 @@ function create() {
     this.cameras.main.setBounds(0, 0, map.width, map.height);
 
     // Center the camera on the map
-    this.cameras.main.centerOn(map.width / 2, map.height / 2);
+    this.cameras.main.centerOn(map.width * 0.5, map.height * 0.5);
 
     // Enable input or player movement for camera scrolling
     this.input.on('pointermove', function (pointer) {
@@ -53,13 +53,15 @@ function create() {
     // this.cameras.main.startFollow(player);
 
     const stations = [];
+    let attachedWagons = [];
+    let locomotive;
 
     const stationPositions = [
         { id: 1, x: 237, y: 215, name: "Весёлая лужайка", connections: [2], hasLocomotive: true, wagonType: null },
-        { id: 2, x: 441, y: 154, name: "Кукурузное поле", connections: [1, 4], hasLocomotive: false, wagonType: 'train2' },
+        { id: 2, x: 441, y: 154, name: "Кукурузное поле", connections: [1, 4], hasLocomotive: false, wagonType: 'train4' },
         { id: 3, x: 254, y: 504, name: "Солнечный берег", connections: [], hasLocomotive: false, wagonType: null },
         { id: 4, x: 700, y: 350, name: "Весёлый паравозик", connections: [2, 5, 6], hasLocomotive: false, wagonType: 'train3' },
-        { id: 5, x: 900, y: 150, name: "Эверест", connections: [4], hasLocomotive: false, wagonType: 'train4' },
+        { id: 5, x: 900, y: 150, name: "Эверест", connections: [4], hasLocomotive: false, wagonType: 'train2' },
         { id: 6, x: 397, y: 366, name: "Зелёная станция", connections: [4, 7], hasLocomotive: false, wagonType: null },
         { id: 7, x: 450, y: 600, name: "Правый берег", connections: [6, 8], hasLocomotive: false, wagonType: null },
         { id: 8, x: 213, y: 737, name: "Заречье", connections: [7, 9], hasLocomotive: false, wagonType: null },
@@ -73,7 +75,8 @@ function create() {
     // Step 1 updated: Drawing Stations and Locomotive
     stationPositions.forEach((stationData) => {
         let station = this.add.circle(stationData.x, stationData.y, 15, 0x4A3267, 0.5);
-        station.setInteractive();
+        station.setInteractive(new Phaser.Geom.Circle(0, 0, 30), Phaser.Geom.Circle.Contains);
+
         station.stationID = stationData.id;
         stations.push(station);
 
@@ -90,6 +93,20 @@ function create() {
             locomotive.setInteractive();
 
             locomotive.currentStation = stationData.id;  // Track current station
+        }
+
+        // Add wagon to the station if it has one
+
+        if (stationData.wagonType) {
+            let wagon = this.add.image(stationData.x, stationData.y, stationData.wagonType).setScale(0.5); // Adjust scale as needed
+            wagon.setInteractive();
+
+            // Prevent the wagon from blocking the station's click event
+            wagon.on('pointerdown', (pointer, localX, localY, event) => {
+                event.stopPropagation();
+            });
+
+            stationData.wagon = wagon;  // Store reference to the wagon directly in the station object
         }
     });
     const OFFSET = 15; // Offset distance from the station.
@@ -135,17 +152,59 @@ function create() {
 
         // Calculate angle between stations for locomotive rotation
         const angle = Phaser.Math.Angle.Between(fromStation.x, fromStation.y, toStation.x, toStation.y);
-        locomotive.setRotation(angle);  // Rotate the locomotive
+        locomotive.setRotation(angle);
 
         // Move the locomotive using a tween
-        const tween = this.tweens.add({
+        this.tweens.add({
             targets: locomotive,
             x: toStation.x,
             y: toStation.y,
             duration: 2000,  // Time in milliseconds to complete movement
             ease: 'Power2',
+            onUpdate: () => {
+                // Continuously update wagon positions as the locomotive moves
+                updateWagonPositions();
+            },
             onComplete: () => {
-                locomotive.currentStation = toStationId;  // Update current station
+                locomotive.currentStation = toStationId;  // Update the locomotive's current station
+                // Check if there is a wagon at the station
+                if (toStation.wagon) {
+                    attachWagon(toStation.wagon);  // Attach the wagon
+                    toStation.wagon = null;  // Remove the wagon from the station
+                }
+                updateWagonPositions();  // Final update of wagon positions
+            }
+        });
+    }
+
+    // Function to attach a wagon (player) to the train
+    function attachWagon(wagon) {
+        attachedWagons.push(wagon);
+        wagon.attachedToTrain = true;  // Flag to indicate the wagon is part of the train
+        wagon.setInteractive();
+        wagon.on('pointerdown', () => {
+            console.log(`Player wagon clicked! Perform action for player: ${wagon.playerID}`);
+            // CUSTOM INTERACTION: Add any player-specific behavior here
+        });
+        console.log("Wagon attached!");
+    }
+
+    // Update wagon positions behind the locomotive
+    const updateWagonPositions = () => {
+        const offsetDistance = 70;  // Distance between each wagon
+
+        attachedWagons.forEach((wagon, index) => {
+            if (wagon.attachedToTrain) {
+                const distance = offsetDistance * (index + 1);
+
+                // Calculate the offset behind the locomotive based on its current rotation
+                const offsetX = Math.cos(locomotive.rotation) * distance;
+                const offsetY = Math.sin(locomotive.rotation) * distance;
+
+                // Directly set the position of each wagon to follow the locomotive
+                wagon.x = locomotive.x - offsetX;
+                wagon.y = locomotive.y - offsetY;
+                wagon.rotation = locomotive.rotation;  // Ensure the wagon faces the same direction
             }
         });
     }
@@ -155,11 +214,10 @@ function create() {
         station.on('pointerdown', () => {
             console.log(`Clicked on station ${station.stationID}`);
 
-            // Move locomotive to the clicked station if it's connected
             const currentStationId = locomotive.currentStation;
             const currentStationData = stationPositions.find(s => s.id === currentStationId);
 
-            // Check if the clicked station is connected to the current one
+            // Move locomotive to the clicked station if it's connected
             if (currentStationData.connections.includes(station.stationID)) {
                 moveLocomotive.call(this, currentStationId, station.stationID);
             } else {
@@ -167,6 +225,18 @@ function create() {
             }
         });
     });
+
+    // Independent wagon click interaction (each wagon represents a player)
+    attachedWagons.forEach((wagon) => {
+        wagon.setInteractive();
+        wagon.on('pointerdown', () => {
+            console.log(`Player wagon clicked! Perform action for player: ${wagon.playerID}`);
+            // CUSTOM INTERACTION
+        });
+    });
+
+
+
 }
 
 

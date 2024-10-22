@@ -29,33 +29,30 @@ function preload() {
 }
 
 function create() {
-    // Create the map and center it
+    // Create and display the map, setting it at (0, 0) and aligning its origin to the top left
     const map = this.add.image(0, 0, 'map').setOrigin(0, 0);
 
-    // Set world bounds to match the image size
+    // Set world boundaries to match the map size
     this.physics.world.setBounds(0, 0, map.width, map.height);
-    this.cameras.main.setBounds(0, 0, map.width, map.height);
+    this.cameras.main.setBounds(0, 0, map.width, map.height); // Camera bounds match the map
 
-    // Center the camera on the map
+    // Center the camera on the middle of the map
     this.cameras.main.centerOn(map.width * 0.5, map.height * 0.5);
 
-    // Enable input or player movement for camera scrolling
+    // Enable dragging to move the camera
     this.input.on('pointermove', function (pointer) {
         if (pointer.isDown) {
-            // Move the camera by dragging
+            // Adjust camera scroll based on pointer movement
             this.cameras.main.scrollX -= (pointer.prevPosition.x - pointer.position.x);
             this.cameras.main.scrollY -= (pointer.prevPosition.y - pointer.position.y);
         }
     }, this);
 
-    // If I will need to follow player sprite
-    // const player = this.physics.add.sprite(map.width / 2, map.height / 2, 'player');
-    // this.cameras.main.startFollow(player);
+    const stations = []; // Array to store all station objects
+    let attachedWagons = []; // Array to store wagons attached to the locomotive
+    let locomotive; // Store the locomotive object
 
-    const stations = [];
-    let attachedWagons = [];
-    let locomotive;
-
+    // Define station positions, connections, and which stations have wagons or locomotives
     const stationPositions = [
         { id: 1, x: 237, y: 215, name: "Весёлая лужайка", connections: [2], hasLocomotive: true, wagonType: null },
         { id: 2, x: 441, y: 154, name: "Кукурузное поле", connections: [1, 4], hasLocomotive: false, wagonType: 'train4' },
@@ -69,119 +66,151 @@ function create() {
         { id: 10, x: 823, y: 817, name: "Дальний лес", connections: [9], hasLocomotive: false, wagonType: null }
     ];
 
-
-
-    // Step 1: Drawing Stations
-    // Step 1 updated: Drawing Stations and Locomotive
+    // Step 1: Draw the stations on the map
     stationPositions.forEach((stationData) => {
-        let station = this.add.circle(stationData.x, stationData.y, 15, 0x4A3267, 0.5);
-        station.setInteractive(new Phaser.Geom.Circle(0, 0, 30), Phaser.Geom.Circle.Contains);
+        let station = this.add.circle(stationData.x, stationData.y, 15, 0x4A3267, 0.5); // Add station circle
+        station.setInteractive(new Phaser.Geom.Circle(0, 0, 30), Phaser.Geom.Circle.Contains); // Make station clickable
 
-        station.stationID = stationData.id;
-        stations.push(station);
+        station.stationID = stationData.id; // Assign the station's ID
+        stations.push(station); // Add station to the array
 
-        // Add station name
+        // Add station name text below the station
         this.add.text(stationData.x, stationData.y + 30, stationData.name, {
             font: '16px Arial',
             fill: '#000000'
         }).setOrigin(.5);
 
-        // Add locomotive to station if it has one
+        // Add locomotive if the station has one
         if (stationData.hasLocomotive) {
             locomotive = this.add.image(stationData.x, stationData.y, 'locomotive');
             locomotive.setScale(0.5);
             locomotive.setInteractive();
-
-            locomotive.currentStation = stationData.id;  // Track current station
+            locomotive.currentStation = stationData.id; // Track which station the locomotive is at
         }
 
-        // Add wagon to the station if it has one
+        // Initialize wagons array at the station
+        stationData.wagons = [];
 
+        // Add a wagon to the station if it has one
         if (stationData.wagonType) {
-            let wagon = this.add.image(stationData.x, stationData.y, stationData.wagonType).setScale(0.5); // Adjust scale as needed
-            wagon.setInteractive();
+            let wagon = this.add.image(stationData.x, stationData.y, stationData.wagonType).setScale(0.5); // Add and scale the wagon
+            wagon.setInteractive(); // Make the wagon clickable
 
-            // TODO Prevent the wagon from blocking the station's click event (doesn't work ) TODO
+            stationData.wagons.push(wagon); // Store the wagon in the station's array
+
+            // TODO Doesn't work.  Prevent the wagon from blocking station clicks TODO
             wagon.on('pointerdown', (pointer, localX, localY, event) => {
-                event.stopPropagation();
+                event.stopPropagation(); // Prevent event bubbling to the station
             });
 
-            stationData.wagon = wagon;  // Store reference to the wagon directly in the station object
+            stationData.wagon = wagon; // Store wagon reference in the station data
         }
     });
-    const OFFSET = 15; // Offset distance from the station.
+    const OFFSET = 15; // Distance to offset the track lines from station centers
 
-    // Step 2: Drawing Tracks as Lines Based on Connections
+    // Step 2: Draw track lines between connected stations
+    // 1. count angle between the stations (phaser)
+    // Math.cos(angle) - how much to move in the X direction 
+    //Math.sin(angle) - how much to move in the Y direction
+    // from A to B
+
     stationPositions.forEach(stationData => {
         stationData.connections.forEach(connectedStationId => {
-            const connectedStationData = stationPositions.find(s => s.id === connectedStationId);
+            const connectedStationData = stationPositions.find(s => s.id === connectedStationId); // Find connected station
 
             if (connectedStationData) {
-                // Get positions of the current station and the connected station
-                const stationA = { x: stationData.x, y: stationData.y };
-                const stationB = { x: connectedStationData.x, y: connectedStationData.y };
+                const stationA = { x: stationData.x, y: stationData.y }; // Current station coordinates
+                const stationB = { x: connectedStationData.x, y: connectedStationData.y }; // Connected station coordinates
 
-                // Calculate the distance and angle between the stations
+                // Calculate angle between the two stations
                 const angle = Phaser.Math.Angle.Between(stationA.x, stationA.y, stationB.x, stationB.y);
 
-                // Adjust the start and end points with the offset
+                // Offset the start and end points of the track
                 const startX = stationA.x + Math.cos(angle) * OFFSET;
                 const startY = stationA.y + Math.sin(angle) * OFFSET;
                 const endX = stationB.x - Math.cos(angle) * OFFSET;
                 const endY = stationB.y - Math.sin(angle) * OFFSET;
 
-                // Draw a simple line between the adjusted points
+                // Draw the track line
                 let graphics = this.add.graphics();
-                graphics.lineStyle(4, 0x645452, 0.4); //
+                graphics.lineStyle(4, 0x645452, 0.4); // Set line color and opacity
                 graphics.beginPath();
-                graphics.moveTo(startX, startY);
-                graphics.lineTo(endX, endY);
-                graphics.strokePath();
+                graphics.moveTo(startX, startY); // Move to start of the line
+                graphics.lineTo(endX, endY); // Draw the line to the connected station
+                graphics.strokePath(); // Finalize the line drawing
             }
         });
     });
 
-    // Step 3: Move Locomotive Function (UPDATE with rotation)
+    /*
+stationPositions.forEach(stationData => {
+    stationData.connections.forEach(connectedStationId => {
+        const connectedStationData = stationPositions.find(s => s.id === connectedStationId); // Find connected station
+
+        // Only draw the line if the connected station ID is greater, to avoid drawing duplicates
+        if (connectedStationData && connectedStationData.id > stationData.id) {
+            const stationA = { x: stationData.x, y: stationData.y }; // Current station coordinates
+            const stationB = { x: connectedStationData.x, y: connectedStationData.y }; // Connected station coordinates
+
+            // Apply a static offset to the start and end points of the line
+            const startX = stationA.x + OFFSET;
+            const startY = stationA.y + OFFSET;
+            const endX = stationB.x - OFFSET;
+            const endY = stationB.y - OFFSET;
+
+            // Draw the track line between stationA and stationB
+            let graphics = this.add.graphics();
+            graphics.lineStyle(4, 0x645452, 0.4); // Set line color and opacity
+            graphics.beginPath();
+            graphics.moveTo(startX, startY); // Move to start of the line (with offset)
+            graphics.lineTo(endX, endY); // Draw the line to the connected station (with offset)
+            graphics.strokePath(); // Finalize the line drawing
+        }
+    });
+});
+
+    */
+
+    // Step 3: Function to move the locomotive between stations
+
     function moveLocomotive(fromStationId, toStationId) {
-        const fromStation = stationPositions.find(s => s.id === fromStationId);
-        const toStation = stationPositions.find(s => s.id === toStationId);
+        const fromStation = stationPositions.find(s => s.id === fromStationId); // Get current station
+        const toStation = stationPositions.find(s => s.id === toStationId); // Get destination station
 
         if (!fromStation || !toStation) {
             return;
         }
 
-        // Calculate angle between stations for locomotive rotation
+        // Calculate angle to rotate the locomotive towards the target station
         const angle = Phaser.Math.Angle.Between(fromStation.x, fromStation.y, toStation.x, toStation.y);
-        locomotive.setRotation(angle);
+        locomotive.setRotation(angle); // Set locomotive rotation
 
-        // Move the locomotive using a tween
+        // Tween (animate) the locomotive movement to the new station
         this.tweens.add({
             targets: locomotive,
             x: toStation.x,
             y: toStation.y,
-            duration: 2000,  // Time in milliseconds to complete movement
+            duration: 2000,
             ease: 'Power2',
             onUpdate: () => {
-                // Continuously update wagon positions as the locomotive moves
-                updateWagonPositions();
+                updateWagonPositions(); // Update wagon positions during movement
             },
             onComplete: () => {
-                locomotive.currentStation = toStationId;  // Update the locomotive's current station
+                locomotive.currentStation = toStationId; // Update the locomotive's current station
 
-                // Check if there is a wagon at the station (from before or a decoupled wagon)
-                if (toStation.wagon && !toStation.wagon.attachedToTrain) {
-                    console.log("Wagon found at station: ", toStation.wagon);
+                // Check if the destination station has wagons
+                if (toStation.wagons && toStation.wagons.length > 0) {
+                    console.log("Wagons found at station: ", toStation.wagons);
 
-                    // Offer the player the option to couple the wagon
-                    showWagonModal.call(this, toStation.wagon, () => {
-                        if (toStation.wagon) {
-                            attachWagon(toStation.wagon);  // Ensure wagon is not null before attaching
-                            toStation.wagon = null;  // Remove the wagon from the station since it's now attached
+                    // Show a modal to allow the player to couple a wagon
+                    showWagonModal.call(this, toStation.wagons, (selectedWagon) => {
+                        if (selectedWagon) {
+                            attachWagon(selectedWagon);  // Attach the selected wagon to the train
+                            toStation.wagons = toStation.wagons.filter(w => w !== selectedWagon);  // Remove wagon from station
                         } else {
-                            console.log("No wagon found to attach.");
+                            console.log("No wagon selected to attach.");
                         }
                     }, () => {
-                        // If the player chooses to leave the wagon
                         console.log("Wagon left at the station.");
                     });
                 }
@@ -191,202 +220,187 @@ function create() {
         });
     }
 
-
-    // Function to attach a wagon (player) to the train
-    //TODO make wagon draggable AFTER (tmp??) attaching
+    // Attach a wagon to the train. This allows the player to drag it
     const attachWagon = (wagon) => {
-        attachedWagons.push(wagon);
-        wagon.attachedToTrain = true;  // Flag to indicate the wagon is part of the train
+        attachedWagons.push(wagon); // Add the wagon to the attached wagons array
+        wagon.attachedToTrain = true;  // Mark wagon as attached
 
-        // Set the wagon as draggable and interactive
-        wagon.setInteractive();
-        this.input.setDraggable(wagon);
+        wagon.setInteractive(); // Make the wagon clickable and draggable
+        this.input.setDraggable(wagon); // Enable dragging
 
-        // Add drag start, drag, and drag end events
+        // Handle drag events
         wagon.on('dragstart', (pointer) => {
             console.log("Dragging started for wagon");
         });
 
         wagon.on('drag', (pointer, dragX, dragY) => {
-            // Set the new position of the wagon during dragging
             wagon.x = dragX;
             wagon.y = dragY;
         });
 
         wagon.on('dragend', (pointer) => {
-            // Check the distance from the locomotive to the wagon
             const distanceFromLocomotive = Phaser.Math.Distance.Between(
-                locomotive.x,
-                locomotive.y,
-                wagon.x,
-                wagon.y
+                locomotive.x, locomotive.y, wagon.x, wagon.y
             );
 
-            // Set a threshold for decoupling (e.g., 150 pixels)
-            const decoupleThreshold = 10;
+            const decoupleThreshold = 10; // Decoupling distance 
 
             if (distanceFromLocomotive > decoupleThreshold) {
-                // Decouple the wagon if it's dragged far enough
-                decoupleWagon(wagon);
+                decoupleWagon(wagon); // Decouple the wagon if it's dragged far away
             } else {
-                // If not far enough, reset the wagon position back to the train
-                updateWagonPositions();
+                updateWagonPositions(); // Reset position if it's not far enough
             }
         });
 
         console.log("Wagon attached and draggable!");
     }
 
+    // Detach a wagon from the train and place it near the station
     function decoupleWagon(wagon) {
         console.log("Wagon decoupled!");
 
-        // Remove the wagon from the attached wagons array
-        attachedWagons = attachedWagons.filter(w => w !== wagon);
-        wagon.attachedToTrain = false;  // Mark it as decoupled
+        attachedWagons = attachedWagons.filter(w => w !== wagon); // Remove from attached wagons
+        wagon.attachedToTrain = false; // Mark as decoupled
 
-        // Change color to indicate the wagon is decoupled (optional visual indicator)
-        wagon.setTint(0xff0000);
-
-        // Get the current station of the locomotive
+        // Get the station where the locomotive is currently located
         const currentStationId = locomotive.currentStation;
         const currentStation = stationPositions.find(station => station.id === currentStationId);
 
         if (currentStation) {
-            // Move the wagon to a position near the station (apply an offset)
-            const offsetX = 50;
-            const offsetY = 30;
-            wagon.x = currentStation.x + offsetX;
-            wagon.y = currentStation.y + offsetY;
+            const index = currentStation.wagons.length; // Determine offset for wagons
+            const offsetX = 50 + (index * 30);  // Offset wagons by X
+            const offsetY = 30 + (index * 20);  // Offset wagons by Y
 
-            // Optionally, reset the tint or make it interactable again
+            wagon.x = currentStation.x + offsetX; // Set wagon's new position X
+            wagon.y = currentStation.y + offsetY; // Set wagon's new position Y
             wagon.clearTint();
 
-            // Track the wagon as being left at this station (use an array to store multiple wagons)
-            if (!currentStation.wagons) {
-                currentStation.wagons = [];
-            }
-
-            // Check if the wagon is already in the station's wagons array
+            // Add wagon to the station's wagon list
             if (!currentStation.wagons.includes(wagon)) {
-                currentStation.wagons.push(wagon);  // Add the wagon to the station's wagons array only if not already added
+                currentStation.wagons.push(wagon);
             }
-            console.log("CHECK uncoupled wagon", currentStation.wagons);
 
             console.log(`Wagon moved near station: ${currentStation.name}`);
-        } else {
-            console.log("Error: Locomotive's current station not found.");
         }
 
-        // Update the positions of the remaining wagons to maintain the train structure
-        updateWagonPositions();
+        updateWagonPositions(); // Update positions of other wagons
     }
 
-
-
-
-    // Update wagon positions behind the locomotive
+    // Update the positions of wagons behind the locomotive
     const updateWagonPositions = () => {
-        const offsetDistance = 70;  // Distance between each wagon
+        const offsetDistance = 70;  // Set the distance between each wagon
 
         attachedWagons.forEach((wagon, index) => {
             if (wagon.attachedToTrain) {
                 const distance = offsetDistance * (index + 1);
 
-                // Calculate the offset behind the locomotive based on its current rotation
+                // Calculate the new position for each wagon relative to the locomotive
                 const offsetX = Math.cos(locomotive.rotation) * distance;
                 const offsetY = Math.sin(locomotive.rotation) * distance;
 
-                // Directly set the position of each wagon to follow the locomotive
-                wagon.x = locomotive.x - offsetX;
-                wagon.y = locomotive.y - offsetY;
-                wagon.rotation = locomotive.rotation;  // Ensure the wagon faces the same direction
+                wagon.x = locomotive.x - offsetX; // Set the X position
+                wagon.y = locomotive.y - offsetY; // Set the Y position
+                wagon.rotation = locomotive.rotation; // Match the locomotive's rotation
             }
         });
     }
 
-    // Example Interaction to Move Locomotive Between Stations
+    // Example interaction: Move the locomotive when a station is clicked
     stations.forEach(station => {
         station.on('pointerdown', () => {
             console.log(`Clicked on station ${station.stationID}`);
 
-            const currentStationId = locomotive.currentStation;
+            const currentStationId = locomotive.currentStation; // Get current station
             const currentStationData = stationPositions.find(s => s.id === currentStationId);
 
-            // Move locomotive to the clicked station if it's connected
+            // Move locomotive if clicked station is connected
             if (currentStationData.connections.includes(station.stationID)) {
-                moveLocomotive.call(this, currentStationId, station.stationID);
+                moveLocomotive.call(this, currentStationId, station.stationID); // Move the train
             } else {
                 console.log("Locomotive can only move to connected stations.");
             }
         });
     });
 
-    // Independent wagon click interaction (each wagon represents a player)
-    attachedWagons.forEach((wagon) => {
-        wagon.setInteractive();
-        wagon.on('pointerdown', () => {
-            console.log(`Player wagon clicked! Perform action for player: ${wagon.playerID}`);
-            // CUSTOM INTERACTION
-        });
-    });
+    // Function to show a modal window for selecting wagons
+    function showWagonModal(wagons, onAttach, onLeave) {
+        console.log("Showing modal with wagons:", wagons);
 
-    // Function to show a modal window with buttons for coupling/uncoupling the wagon
-    function showWagonModal(wagon, onAttach, onLeave) {
-        // Create a semi-transparent background for the modal
         const modalBackground = this.add.graphics();
         modalBackground.fillStyle(0x000000, 0.5);
         modalBackground.fillRect(200, 150, 400, 300);
 
-        // Create text for the modal
-        const modalText = this.add.text(400, 200, 'Что делать c вагоном?', {
-            font: '24px Arial',
-            fill: '#ffffff'
-        }).setOrigin(0.5);
+        // Add modal text
+        const modalText = this.add.text(400, 200, 'Выберите вагон для действия:', {
+            font: '24px Arial', fill: '#ffffff'
+        }).setOrigin(0.5); // Center the text
 
-        // couple
+        let selectedWagon = null; // Track the selected wagon
+
+        const modalWagonImages = []; // Store wagon images for later destruction
+
+        const startX = 250;
+        const startY = 250;
+        const spacingX = 80;
+
+        // Display each wagon available at the station
+        if (Array.isArray(wagons) && wagons.length > 0) {
+            wagons.forEach((wagon, index) => {
+                const wagonImage = this.add.image(startX + index * spacingX, startY, wagon.texture.key).setScale(0.4);
+
+                modalWagonImages.push(wagonImage); // Add image to the modal's array
+
+                wagonImage.setInteractive(); // Make each wagon image clickable
+                wagonImage.on('pointerdown', () => {
+                    if (selectedWagon) {
+                        selectedWagon.clearTint(); // Remove previous selection highlight
+                    }
+                    wagonImage.setTint(0x00ff00); // Highlight selected wagon
+                    selectedWagon = wagon; // Set selected wagon
+                });
+            });
+        }
+
+        // Create 'Attach' button for coupling wagons
         const coupleButton = this.add.text(250, 300, 'Прицепить', {
-            font: '20px Arial',
-            fill: '#00ff00',
-            backgroundColor: '#000000',
-            padding: { x: 10, y: 5 }
+            font: '20px Arial', fill: '#00ff00', backgroundColor: '#000000', padding: { x: 10, y: 5 }
         }).setInteractive();
 
         coupleButton.on('pointerdown', () => {
-            onAttach(); // Call the onAttach function to attach the wagon
-            updateWagonPositions();
-            closeModal(); // Close the modal
+            if (selectedWagon) {
+                onAttach(selectedWagon); // Attach selected wagon
+                updateWagonPositions(); // Update positions after coupling
+                closeModal(); // Close the modal
+            }
         });
 
-        // Create the 'Leave' button
+        // Create 'Leave' button for leaving wagons
         const leaveButton = this.add.text(450, 300, 'Оставить', {
-            font: '20px Arial',
-            fill: '#ff0000',
-            backgroundColor: '#000000',
-            padding: { x: 10, y: 5 }
+            font: '20px Arial', fill: '#ff0000', backgroundColor: '#000000', padding: { x: 10, y: 5 }
         }).setInteractive();
 
         leaveButton.on('pointerdown', () => {
-            onLeave(); // Call the onLeave function to leave the wagon
-            closeModal(); // Close the modal
+            if (selectedWagon) {
+                onLeave(selectedWagon); // Leave the wagon
+                closeModal(); // Close the modal
+            }
         });
 
-        // Function to close the modal and remove the elements
+        // Function to close the modal and destroy its elements
         function closeModal() {
             modalBackground.destroy();
             modalText.destroy();
             coupleButton.destroy();
             leaveButton.destroy();
+
+            modalWagonImages.forEach((wagonImage) => { // Destroy all modal wagon images
+                wagonImage.destroy();
+            });
         }
     }
-
-
-
 }
 
-
-
 function update() {
-
-    //DEBUG. TO identify points coordinates on the map
+    // DEBUG: Log pointer coordinates on the map for testing
     //console.log(`Pointer X: ${this.input.mousePointer.worldX}, Pointer Y: ${this.input.mousePointer.worldY}`);
 }

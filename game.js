@@ -1,6 +1,6 @@
 const config = {
     type: Phaser.AUTO,
-    width: 800,
+    width: 1000,
     height: 600,
     backgroundColor: '#87CEEB',
     parent: 'game-container',
@@ -57,7 +57,7 @@ function create() {
         { id: 1, x: 237, y: 215, name: "Весёлая лужайка", connections: [2], hasLocomotive: true, wagonType: null },
         { id: 2, x: 441, y: 154, name: "Кукурузное поле", connections: [1, 4], hasLocomotive: false, wagonType: 'train4' },
         { id: 3, x: 254, y: 504, name: "Солнечный берег", connections: [], hasLocomotive: false, wagonType: null },
-        { id: 4, x: 700, y: 350, name: "Весёлый паравозик", connections: [2, 5, 6], hasLocomotive: false, wagonType: 'train3' },
+        { id: 4, x: 700, y: 350, name: "Весёлый паровозик", connections: [2, 5, 6], hasLocomotive: false, wagonType: 'train3' },
         { id: 5, x: 900, y: 150, name: "Эверест", connections: [4], hasLocomotive: false, wagonType: 'train2' },
         { id: 6, x: 397, y: 366, name: "Зелёная станция", connections: [4, 7], hasLocomotive: false, wagonType: null },
         { id: 7, x: 450, y: 600, name: "Правый берег", connections: [6, 8], hasLocomotive: false, wagonType: null },

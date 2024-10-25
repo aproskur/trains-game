@@ -97,7 +97,7 @@ function create() {
     // Add text for displaying station information
     const infoTextTitle = this.add.text(mapWidth + 20, 20, 'Информация:', { font: '24px Arial', fill: '#000' });
     const stationNameText = this.add.text(mapWidth + 20, 60, 'Станция: N/A', { font: '18px Arial', fill: '#000' });
-    const wagonText = this.add.text(mapWidth + 20, 100, 'Вагоны: N/A', { font: '18px Arial', fill: '#000' });
+    const wagonText = this.add.text(mapWidth + 20, 100, 'Вагоны: сейчас на станции нет вагонов', { font: '18px Arial', fill: '#000' });
 
     // Fix the info panel position to make sure it doesn't scroll
     infoPanelBackground.setScrollFactor(0);  // Info panel stays static
@@ -109,22 +109,25 @@ function create() {
     // Update the info panel function
     // Modify updateInfoPanel to ensure drawing
     function updateInfoPanel(stationName, wagons) {
-        stationNameText.setText(`Station: ${stationName}`);
+        stationNameText.setText(`Станция: ${stationName}`);
         infoPanelWagonGraphics.clear(); // Clear previous graphics
 
         const startX = mapWidth + 40;  // X offset for the circles
-        let offsetY = 150;             // Increased Y offset to start below the text
+        let offsetY = 150;             // Y offset below the text
         const circleRadius = 10;       // Radius for the wagon circles
         const circleSpacing = 25;      // Spacing between circles
 
         // Display title text for wagons
         if (wagons.length === 0) {
-            wagonText.setText('Вагоны: N/A'); // Show N/A if there are no wagons
+            wagonText.setText('Вагоны:  сейчас на станции нет вагонов'); // no wagons
         } else {
             wagonText.setText('Вагоны:');
         }
 
-        wagonText.setPosition(mapWidth + 20, 110); // Position wagonText lower if needed
+        wagonText.setPosition(mapWidth + 20, 110);
+
+        // Ensure wagon graphics stay fixed by setting scroll factor
+        infoPanelWagonGraphics.setScrollFactor(0);
 
         // Loop through each wagon and draw a circle for it
         wagons.forEach((wagonType, index) => {
@@ -178,11 +181,6 @@ function create() {
 
         // Initialize wagons array at the station
         stationData.wagons = [];
-
-
-
-
-
 
         // Add a wagon to the station if it has one
         if (stationData.wagonTypes && stationData.wagonTypes.length > 0) {
@@ -390,7 +388,7 @@ stationPositions.forEach(stationData => {
 
                     // Immediately decouple the wagon from the locomotive
                     attachedWagons = attachedWagons.filter(w => w !== wagon);
-                    wagon.attachedToTrain = false;  // Mark wagon as decoupled
+                    //wagon.attachedToTrain = false;  // Mark wagon as decoupled
 
                     console.log(`Wagon successfully decoupled from train. Remaining attached wagons: ${attachedWagons.length}`);
 
@@ -412,6 +410,7 @@ stationPositions.forEach(stationData => {
                     attachWagon(wagon);
                 } else if (wagon.attachedToTrain) {
                     // Case 2: Decouple and place at the locomotive's current station
+                    console.log("Entering CONDITION in DRAGEN to call DECOUPLE function")
                     decoupleWagon(wagon, stationPositions.find(s => s.id === locomotive.currentStation));
                 } else {
                     // Case 3: Not attached, so return to its assigned station
@@ -455,6 +454,7 @@ stationPositions.forEach(stationData => {
 
     // Decouple a wagon from the train and place it near the current station
     function decoupleWagon(wagon, stationData) {
+        console.log("DECOUPLE WAGON called");
         console.log(`\n\n--- Decoupling Process Start ---`);
         console.log(`Decoupling wagon from locomotive. Wagon's current stationID: ${wagon.stationID}, Locomotive's stationID: ${locomotive.currentStation}`);
 
@@ -462,13 +462,12 @@ stationPositions.forEach(stationData => {
         attachedWagons = attachedWagons.filter(w => w !== wagon);
         wagon.attachedToTrain = false; // Mark as decoupled
 
-        // **Update the wagon's stationID** to the locomotive's current station
+        // Update the wagon's stationID to the locomotive's current station
         wagon.stationID = locomotive.currentStation;
-        console.log(`Wagon's stationID updated to locomotive's stationID: ${locomotive.currentStation}`);
 
         // Calculate a new position for the decoupled wagon around the destination station
         const angle = Phaser.Math.Between(0, 360);  // Random angle around the station
-        const distance = Phaser.Math.Between(40, 60);  // Random distance from station center (adjust as needed)
+        const distance = Phaser.Math.Between(40, 60);  // Random distance from station center
 
         const offsetX = Math.cos(Phaser.Math.DegToRad(angle)) * distance;
         const offsetY = Math.sin(Phaser.Math.DegToRad(angle)) * distance;
@@ -477,18 +476,22 @@ stationPositions.forEach(stationData => {
         wagon.x = locomotive.x + offsetX;
         wagon.y = locomotive.y + offsetY;
 
-        console.log(`Wagon decoupled and positioned near station ${stationData.name}. New position: X=${wagon.x}, Y=${wagon.y}`);
+        // Check if wagon's type is already in wagonTypes before adding it
+        stationData.wagonTypes.push(wagon.wagonType);
 
-        // Add the decoupled wagon to the destination station's wagons array
+        // Add the wagon to the station's wagon array
         stationData.wagons.push(wagon);
-        console.log(`Wagon added to station ${stationData.name}. Station now has ${stationData.wagons.length} wagons.`);
 
+        console.log("Before updateInfoPanel call:", stationData.wagons, stationData.wagonTypes);
+        updateInfoPanel(stationData.name, stationData.wagonTypes);
+        console.log("After updateInfoPanel call:", stationData.wagons, stationData.wagonTypes);
 
-        stationData.wagonTypes.push(wagon.wagonType); // Add the type back for info display
-
-        // After decoupling, update wagon positions
-        updateWagonPositions();
+        console.log(`Wagon decoupled and positioned near station ${stationData.name}. New position: X=${wagon.x}, Y=${wagon.y}`);
+        console.log(`Station ${stationData.name} now has ${stationData.wagons.length} wagons.`);
+        console.log(`Updated wagons at station ${stationData.id}:`, stationData.wagons);
+        console.log(`Updated wagon types at station ${stationData.id}:`, stationData.wagonTypes);
     }
+
 
 
 
@@ -540,28 +543,64 @@ stationPositions.forEach(stationData => {
     }
 
 
-    // Example interaction: Move the locomotive when a station is clicked
+    let currentTargetStation = null; // Track the target station
+    let goButtonCircle = null; // Reference for the "Go" button circle
+    let goButtonText = null; // Reference for the "Go" button text
+
     stations.forEach(station => {
         station.on('pointerdown', () => {
             console.log(`Clicked on station ${station.stationID}`);
+
+            // Get data for the clicked station
             const clickedStationData = stationPositions.find(s => s.id === station.stationID);
 
-            // Log wagon types to ensure data is correct
-            console.log("Wagon Types at Station:", clickedStationData.wagonTypes);
-
-            // Show info panel with the station's name and wagons
+            // Show station info in the info panel
             updateInfoPanel(clickedStationData.name, clickedStationData.wagonTypes);
 
-            // Move locomotive if the station is connected
+            // Get the current station ID of the locomotive
             const currentStationId = locomotive.currentStation;
+
+            // Check if the clicked station is connected and reachable from the locomotive's current station
             const currentStationData = stationPositions.find(s => s.id === currentStationId);
-            if (currentStationData.connections.includes(station.stationID)) {
-                moveLocomotive.call(this, currentStationId, station.stationID);
+            const isReachable = currentStationData.connections.includes(clickedStationData.id);
+
+            // Set current target station only if reachable
+            if (isReachable) {
+                currentTargetStation = clickedStationData;
+
+                // Remove existing "Go" button circle and text if any
+                if (goButtonCircle) goButtonCircle.destroy();
+                if (goButtonText) goButtonText.destroy();
+
+                // Create the "Go" button circle on the clicked station
+                goButtonCircle = this.add.circle(station.x, station.y, 15, 0x4A3267, 1); // Same size and color as the station
+                goButtonCircle.setInteractive(); // Make it clickable
+
+                // Create the "Go" text in the center of the button
+                goButtonText = this.add.text(station.x, station.y, 'Go', {
+                    font: '16px Arial',
+                    fill: '#FFFFFF'
+                }).setOrigin(0.5);
+
+                // Handle click on the "Go" button circle
+                goButtonCircle.on('pointerdown', () => {
+                    if (currentTargetStation) {
+                        moveLocomotive.call(this, currentStationId, currentTargetStation.id); // Move the train
+
+                        // Clean up: Remove "Go" button and text after the train starts moving
+                        goButtonCircle.destroy();
+                        goButtonText.destroy();
+                        goButtonCircle = null;
+                        goButtonText = null;
+                    }
+                });
             } else {
-                console.log("Locomotive can only move to connected stations.");
+                console.log("This station is not reachable from the locomotive's current position.");
             }
         });
     });
+
+
 
 
 

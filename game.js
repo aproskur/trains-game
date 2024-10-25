@@ -22,7 +22,7 @@ const game = new Phaser.Game(config);
 function preload() {
     this.load.image('map', 'images/map.webp');
     // this.load.image('locomotive', 'images/locomotive.png');
-    //this.load.image('train1', 'images/train-1.png');
+    // this.load.image('train1', 'images/train-1.png');
     // this.load.image('train2', 'images/train-2.png');
     // this.load.image('train3', 'images/train-3.png');
     // this.load.image('train4', 'images/train-4.png');
@@ -30,10 +30,19 @@ function preload() {
 
 let trainGraphics;
 let infoPanelWagonGraphics;
+let infoPanelTrainGraphics;
 
 function create() {
     trainGraphics = this.add.graphics();
     infoPanelWagonGraphics = this.add.graphics();
+    infoPanelTrainGraphics = this.add.graphics();
+    infoPanelTrainGraphics.setScrollFactor(0);
+
+
+
+
+    // Define starting Y position for the train graphics
+    trainDisplayY = 310;
 
     const mapWidth = 0.7 * config.width;  // 70% of canvas for the map
     const infoPanelWidth = 0.3 * config.width;  // 30% of canvas for the info panel
@@ -110,36 +119,73 @@ function create() {
     // Modify updateInfoPanel to ensure drawing
     function updateInfoPanel(stationName, wagons) {
         stationNameText.setText(`Станция: ${stationName}`);
-        infoPanelWagonGraphics.clear(); // Clear previous graphics
+        infoPanelWagonGraphics.clear(); // Clear only the station graphics
 
-        const startX = mapWidth + 40;  // X offset for the circles
-        let offsetY = 150;             // Y offset below the text
-        const circleRadius = 10;       // Radius for the wagon circles
-        const circleSpacing = 25;      // Spacing between circles
+        const startX = mapWidth + 40;  // X offset for station wagon circles
+        let offsetY = 150;             // Y offset for station wagons
+        const circleRadius = 10;       // Radius for each station wagon circle
+        const circleSpacing = 25;      // Spacing between station wagon circles
 
-        // Display title text for wagons
+        // Display title for wagons
         if (wagons.length === 0) {
-            wagonText.setText('Вагоны:  сейчас на станции нет вагонов'); // no wagons
+            wagonText.setText('Вагоны:  сейчас на станции нет вагонов');
         } else {
             wagonText.setText('Вагоны:');
         }
 
         wagonText.setPosition(mapWidth + 20, 110);
 
-        // Ensure wagon graphics stay fixed by setting scroll factor
+        // Ensure station wagon graphics stay static on the panel
         infoPanelWagonGraphics.setScrollFactor(0);
 
-        // Loop through each wagon and draw a circle for it
+        // Draw each wagon type as a circle with color
         wagons.forEach((wagonType, index) => {
             const wagonColor = wagonColors[wagonType] || 0xFFFFFF;
-            console.log("wagon color from infoPanel", wagonColor);
 
             // Draw each wagon as a circle with color
             infoPanelWagonGraphics.fillStyle(wagonColor, 1);
             infoPanelWagonGraphics.fillCircle(startX, offsetY + (index * circleSpacing), circleRadius);
         });
 
-        infoPanelWagonGraphics.setDepth(10); // Set high depth to avoid overlap with other elements
+        infoPanelWagonGraphics.setDepth(10); // Set depth to avoid overlapping issues
+    }
+
+    // --- Train Graphics Label ---
+    const trainLabel = this.add.text(
+        mapWidth + 40,
+        'Конфигурация поезда:',
+        { font: '18px Arial', fill: '#000' }
+    );
+    trainLabel.setScrollFactor(0); // Fix label to info panel
+
+
+    function updateTrainGraphics() {
+        infoPanelTrainGraphics.clear();
+
+        const startX = map.width + 40;
+        const trainDisplayY = 300;
+
+        const locomotiveWidth = 40;
+        const locomotiveHeight = 20;
+        const circleRadius = 10;
+        const spacing = 5;
+
+        // Draw the Locomotive
+        infoPanelTrainGraphics.fillStyle(0xE84393, 1);
+        infoPanelTrainGraphics.fillRect(startX, trainDisplayY, locomotiveWidth, locomotiveHeight);
+
+        // Draw each wagon as a Circle, positioned Beside the locomotive
+        attachedWagons.forEach((wagon, index) => {
+            const wagonColor = wagonColors[wagon.wagonType] || 0xFFFFFF; // Wagon color
+            const xPos = startX + locomotiveWidth + (index + 1) * (circleRadius * 2 + spacing); // Position next to locomotive
+
+            infoPanelTrainGraphics.fillStyle(wagonColor, 1); // Set color for each wagon
+            infoPanelTrainGraphics.fillCircle(xPos, trainDisplayY + locomotiveHeight / 2, circleRadius); // Draw as circle
+        });
+
+        infoPanelTrainGraphics.setDepth(5); // Ensure train display stays above other graphics
+
+
     }
 
 
@@ -193,7 +239,7 @@ function create() {
             const offsetDistance = stationRadius + 20;  // Increased distance from station to avoid rails and names
             const angleIncrement = 360 / stationData.wagonTypes.length;
 
-            // We want to skip certain angles (e.g., avoid bottom side where station names are located)
+            // Skip certain angles (avoid bottom side where station names are located)
             const avoidAngleStart = Phaser.Math.DegToRad(120);  // Start of the angle to avoid (below the station)
             const avoidAngleEnd = Phaser.Math.DegToRad(240);    // End of the angle to avoid
 
@@ -331,6 +377,7 @@ stationPositions.forEach(stationData => {
                 });
 
                 updateWagonPositions(); // Final update for the attached wagons
+                updateTrainGraphics();
             }
         });
     }
@@ -348,6 +395,9 @@ stationPositions.forEach(stationData => {
 
         attachedWagons.push(wagon); // Add the wagon to the attached wagons array
         wagon.attachedToTrain = true;  // Mark wagon as attached
+
+        //draw train in info panel
+        updateTrainGraphics();
 
         // Re-enable dragging after the wagon is coupled to the train
         this.input.setDraggable(wagon, true);  // Allow dragging again after it's attached
@@ -476,11 +526,12 @@ stationPositions.forEach(stationData => {
         wagon.x = locomotive.x + offsetX;
         wagon.y = locomotive.y + offsetY;
 
-        // Check if wagon's type is already in wagonTypes before adding it
         stationData.wagonTypes.push(wagon.wagonType);
 
         // Add the wagon to the station's wagon array
         stationData.wagons.push(wagon);
+
+        updateTrainGraphics();
 
         console.log("Before updateInfoPanel call:", stationData.wagons, stationData.wagonTypes);
         updateInfoPanel(stationData.name, stationData.wagonTypes);
@@ -491,11 +542,6 @@ stationPositions.forEach(stationData => {
         console.log(`Updated wagons at station ${stationData.id}:`, stationData.wagons);
         console.log(`Updated wagon types at station ${stationData.id}:`, stationData.wagonTypes);
     }
-
-
-
-
-
 
 
     // Update the positions of wagons behind the locomotive

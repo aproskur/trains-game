@@ -29,9 +29,11 @@ function preload() {
 }
 
 let trainGraphics;
+let infoPanelWagonGraphics;
 
 function create() {
     trainGraphics = this.add.graphics();
+    infoPanelWagonGraphics = this.add.graphics();
 
     const mapWidth = 0.7 * config.width;  // 70% of canvas for the map
     const infoPanelWidth = 0.3 * config.width;  // 30% of canvas for the info panel
@@ -85,6 +87,59 @@ function create() {
         { id: 10, x: 823, y: 817, name: "Дальний лес", connections: [9], hasLocomotive: false, wagonTypes: [] }
     ];
 
+
+    // --- Info Panel (Fixed Position) ---
+    // Create a fixed background for the info panel (right 30% of canvas)
+    const infoPanelBackground = this.add.graphics();
+    infoPanelBackground.fillStyle(0xF4F4F4, 1);  // Light gray background for the info panel
+    infoPanelBackground.fillRect(mapWidth, 0, infoPanelWidth, config.height);  // Right 30% of canvas
+
+    // Add text for displaying station information
+    const infoTextTitle = this.add.text(mapWidth + 20, 20, 'Информация:', { font: '24px Arial', fill: '#000' });
+    const stationNameText = this.add.text(mapWidth + 20, 60, 'Станция: N/A', { font: '18px Arial', fill: '#000' });
+    const wagonText = this.add.text(mapWidth + 20, 100, 'Вагоны: N/A', { font: '18px Arial', fill: '#000' });
+
+    // Fix the info panel position to make sure it doesn't scroll
+    infoPanelBackground.setScrollFactor(0);  // Info panel stays static
+    infoTextTitle.setScrollFactor(0);
+    stationNameText.setScrollFactor(0);
+    wagonText.setScrollFactor(0);
+
+    // Function to update the info panel when a station is clicked
+    // Update the info panel function
+    // Modify updateInfoPanel to ensure drawing
+    function updateInfoPanel(stationName, wagons) {
+        stationNameText.setText(`Station: ${stationName}`);
+        infoPanelWagonGraphics.clear(); // Clear previous graphics
+
+        const startX = mapWidth + 40;  // X offset for the circles
+        let offsetY = 150;             // Increased Y offset to start below the text
+        const circleRadius = 10;       // Radius for the wagon circles
+        const circleSpacing = 25;      // Spacing between circles
+
+        // Display title text for wagons
+        if (wagons.length === 0) {
+            wagonText.setText('Вагоны: N/A'); // Show N/A if there are no wagons
+        } else {
+            wagonText.setText('Вагоны:');
+        }
+
+        wagonText.setPosition(mapWidth + 20, 110); // Position wagonText lower if needed
+
+        // Loop through each wagon and draw a circle for it
+        wagons.forEach((wagonType, index) => {
+            const wagonColor = wagonColors[wagonType] || 0xFFFFFF;
+            console.log("wagon color from infoPanel", wagonColor);
+
+            // Draw each wagon as a circle with color
+            infoPanelWagonGraphics.fillStyle(wagonColor, 1);
+            infoPanelWagonGraphics.fillCircle(startX, offsetY + (index * circleSpacing), circleRadius);
+        });
+
+        infoPanelWagonGraphics.setDepth(10); // Set high depth to avoid overlap with other elements
+    }
+
+
     // Step 1: Draw the stations on the map
     stationPositions.forEach((stationData) => {
         let station = this.add.circle(stationData.x, stationData.y, 15, 0x4A3267, 0.5); // Add station circle
@@ -108,6 +163,17 @@ function create() {
             locomotive.setDepth(1);
             locomotive.setInteractive();
             locomotive.currentStation = stationData.id; // Track which station the locomotive is at
+        }
+
+        // Find the initial station where the locomotive is located
+        const initialStation = stationPositions.find(station => station.hasLocomotive);
+
+        if (initialStation) {
+            // Set the locomotive's current station ID
+            locomotive.currentStation = initialStation.id;
+
+            // Show the station name and wagons in the info panel
+            updateInfoPanel(initialStation.name, initialStation.wagonTypes);
         }
 
         // Initialize wagons array at the station
@@ -135,10 +201,8 @@ function create() {
 
             stationData.wagonTypes.forEach((wagonType, index) => {
                 let wagonColor = wagonColors[wagonType] || 0xFFFFFF; // Default to white 
-                // Calculate the angle for each wagon to position them around the station
                 let angle = Phaser.Math.DegToRad(angleIncrement * index);  // Convert degrees to radians
 
-                // If the angle is within the range to avoid, adjust it
                 if (angle >= avoidAngleStart && angle <= avoidAngleEnd) {
                     angle += Phaser.Math.DegToRad(angleIncrement);  // Adjust the angle to skip the "name" zone
                 }
@@ -151,11 +215,10 @@ function create() {
                 wagon.setInteractive();  // Make the wagon clickable
                 wagon.setDepth(1);  // Ensure wagons are above rails and other elements
 
-                // Save the wagon's initial position
+                wagon.wagonType = wagonType; // Set the wagon type on the wagon instance
                 wagon.originalX = wagon.x;
                 wagon.originalY = wagon.y;
-
-                wagon.stationID = stationData.id; // Associate the wagon with the station by ID
+                wagon.stationID = stationData.id;
 
                 stationData.wagons.push(wagon);  // Add the wagon to the station's wagons array
 
@@ -243,7 +306,7 @@ stationPositions.forEach(stationData => {
             return;
         }
 
-        console.log(`Moving locomotive from station ${fromStationId} to station ${toStationId}`);
+        //console.log(`Moving locomotive from station ${fromStationId} to station ${toStationId}`);
 
         // Calculate angle to rotate the locomotive towards the target station
         const angle = Phaser.Math.Angle.Between(fromStation.x, fromStation.y, toStation.x, toStation.y);
@@ -295,6 +358,12 @@ stationPositions.forEach(stationData => {
         const station = stationPositions.find(s => s.id === wagon.stationID);
         if (station) {
             station.wagons = station.wagons.filter(w => w !== wagon);
+        }
+
+        // Also remove the wagon type from `wagonTypes` using the type
+        const wagonIndex = station.wagonTypes.indexOf(wagon.wagonType);
+        if (wagonIndex > -1) {
+            station.wagonTypes.splice(wagonIndex, 1);
         }
 
         updateWagonPositions(); // Update wagon positions after attachment
@@ -414,6 +483,9 @@ stationPositions.forEach(stationData => {
         stationData.wagons.push(wagon);
         console.log(`Wagon added to station ${stationData.name}. Station now has ${stationData.wagons.length} wagons.`);
 
+
+        stationData.wagonTypes.push(wagon.wagonType); // Add the type back for info display
+
         // After decoupling, update wagon positions
         updateWagonPositions();
     }
@@ -443,7 +515,7 @@ stationPositions.forEach(stationData => {
                 wagon.y = locomotive.y - offsetY;
                 wagon.rotation = locomotive.rotation; // Match the locomotive's rotation
 
-                console.log(`Updating attached wagon ${index + 1} position. New X: ${wagon.x}, New Y: ${wagon.y}`);
+                // console.log(`Updating attached wagon ${index + 1} position. New X: ${wagon.x}, New Y: ${wagon.y}`);
 
                 // Draw a line between the locomotive and the first wagon
                 if (index === 0) {
@@ -472,13 +544,19 @@ stationPositions.forEach(stationData => {
     stations.forEach(station => {
         station.on('pointerdown', () => {
             console.log(`Clicked on station ${station.stationID}`);
+            const clickedStationData = stationPositions.find(s => s.id === station.stationID);
 
-            const currentStationId = locomotive.currentStation; // Get current station
+            // Log wagon types to ensure data is correct
+            console.log("Wagon Types at Station:", clickedStationData.wagonTypes);
+
+            // Show info panel with the station's name and wagons
+            updateInfoPanel(clickedStationData.name, clickedStationData.wagonTypes);
+
+            // Move locomotive if the station is connected
+            const currentStationId = locomotive.currentStation;
             const currentStationData = stationPositions.find(s => s.id === currentStationId);
-
-            // Move locomotive if clicked station is connected
             if (currentStationData.connections.includes(station.stationID)) {
-                moveLocomotive.call(this, currentStationId, station.stationID); // Move the train
+                moveLocomotive.call(this, currentStationId, station.stationID);
             } else {
                 console.log("Locomotive can only move to connected stations.");
             }
@@ -488,28 +566,9 @@ stationPositions.forEach(stationData => {
 
 
 
-    // --- Info Panel (Fixed Position) ---
-    // Create a fixed background for the info panel (right 30% of canvas)
-    const infoPanelBackground = this.add.graphics();
-    infoPanelBackground.fillStyle(0xF4F4F4, 1);  // Light gray background for the info panel
-    infoPanelBackground.fillRect(mapWidth, 0, infoPanelWidth, config.height);  // Right 30% of canvas
 
-    // Add text for displaying station information
-    const infoTextTitle = this.add.text(mapWidth + 20, 20, 'Station Info:', { font: '24px Arial', fill: '#000' });
-    const stationNameText = this.add.text(mapWidth + 20, 60, 'Station: N/A', { font: '18px Arial', fill: '#000' });
-    const wagonText = this.add.text(mapWidth + 20, 100, 'Wagons: N/A', { font: '18px Arial', fill: '#000' });
 
-    // Fix the info panel position to make sure it doesn't scroll
-    infoPanelBackground.setScrollFactor(0);  // Info panel stays static
-    infoTextTitle.setScrollFactor(0);
-    stationNameText.setScrollFactor(0);
-    wagonText.setScrollFactor(0);
 
-    // Function to update the info panel when a station is clicked
-    function updateInfoPanel(stationName, wagons) {
-        stationNameText.setText(`Station: ${stationName}`);
-        wagonText.setText(`Wagons: ${wagons.join(', ')}`);
-    }
 }
 
 function update() {

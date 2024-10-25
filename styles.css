@@ -40,3 +40,7 @@ body {
     justify-content: left;
     align-items: center;
 }
+
+#game-container {
+    padding: 3em;
+}

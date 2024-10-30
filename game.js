@@ -620,7 +620,7 @@ stationPositions.forEach(stationData => {
 
                 // Create the "Go" button circle on the clicked station
                 goButtonCircle = this.add.circle(station.x, station.y, 15, 0x4A3267, 1); // Same size and color as the station
-                goButtonCircle.setInteractive(); // Make it clickable
+                goButtonCircle.setInteractive();
 
                 // Create the "Go" text in the center of the button
                 goButtonText = this.add.text(station.x, station.y, 'Go', {

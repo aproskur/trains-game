@@ -26,7 +26,7 @@ function preload() {
 let trainGraphics;
 let sidebarWagonGraphics;
 let sidebarTrainGraphics;
-let sidebarVisible = true;
+let sidebarVisible = false;
 
 function drawStar(graphics, x, y, radius, color, alpha = 0.1, lineWidth = 2) {
     graphics.lineStyle(lineWidth, color, alpha);
@@ -134,7 +134,7 @@ function create() {
     let locomotive;
 
     // Define station positions, connections, and which stations have wagons or locomotives
-    const stationPositions = [
+    const stationsData = [
         { id: 1, x: 315, y: 131, name: "14", connections: [2], hasLocomotive: true, wagonTypes: ['train1', 'train1', 'train1', 'train2', 'train2'] },
         { id: 2, x: 502, y: 109, name: "13", connections: [1, 4], hasLocomotive: false, wagonTypes: ['train4', 'train4', 'train4', 'train4', 'train4', 'train4', 'train1', 'train1', 'train1'] },
         { id: 3, x: 344, y: 374, name: "24", connections: [], hasLocomotive: false, wagonTypes: [] },
@@ -195,11 +195,11 @@ function create() {
 
     // Sidebar display function to set visibility and depth
     // Set up the pointerdown event listener once in the create function or after sidebar initialization
-    this.input.on('pointerdown', (pointer) => {
-        if (sidebarVisible && isClickOutsideSidebar(pointer)) {
-            hideSidebar();
-        }
-    });
+    //this.input.on('pointerdown', (pointer) => {
+    //    if (sidebarVisible && isClickOutsideSidebar(pointer)) {
+    //       hideSidebar();
+    //   }
+    //  });
 
     const showSidebar = () => {
         console.log("Showing sidebar");
@@ -213,6 +213,15 @@ function create() {
         });
 
         console.log("Sidebar visibility after showSidebar():", sidebarLayer.visible);
+
+        // DEBUG!!!!!
+        this.time.delayedCall(1000, () => {
+            console.log("1-second delay passed, sidebar should still be visible:", sidebarLayer.visible);
+            // Only allow hiding now if the sidebar is still meant to be visible
+            if (sidebarVisible) {
+                console.log("Sidebar remains visible after delay");
+            }
+        });
     };
 
     const hideSidebar = () => {
@@ -224,7 +233,8 @@ function create() {
 
 
     // Hide sidebar initially
-    hideSidebar();
+    // hideSidebar();
+    //showSidebar();
 
 
     let draggableWagonSidebarGraphics = [];
@@ -300,6 +310,8 @@ function create() {
 
         // Ensure the sidebar is visible after update
         showSidebar();
+
+
 
         // Remove any previous pointerdown listener to avoid duplicates
         //this.input.off('pointerdown', hideSidebarOnOutsideClick);
@@ -470,62 +482,90 @@ function create() {
 
 
 
+    // Track the current target station and "Go" button elements
+    let currentTargetStation = null;
+    let goButtonCircle = null;
+    let goButtonText = null;
+
     // Step 1: Draw the stations on the map
-    stationPositions.forEach((stationData) => {
-        let station = this.add.circle(stationData.x, stationData.y, 15, 0x4A3267, 0.0); // Add station circle
-        // Create a graphics object to draw the station as a star
+    stationsData.forEach((stationData) => {
+        // Create each station circle and add it to the map
+        let station = this.add.circle(stationData.x, stationData.y, 15, 0x4A3267, 0.0);
+        station.setInteractive(new Phaser.Geom.Circle(0, 0, 30), Phaser.Geom.Circle.Contains); // Make station interactive
+
+        // Draw a star for the station
         const stationGraphics = this.add.graphics();
-        const stationColor = 0x4A3267; // color for the star (if change fix color in createGoButton too)
+        drawStar(stationGraphics, stationData.x, stationData.y, 20, 0x4A3267, 0.5);
 
-        // Draw the star at the station's position
-        drawStar(stationGraphics, stationData.x, stationData.y, 20, stationColor, .5);
-        station.setInteractive(new Phaser.Geom.Circle(0, 0, 30), Phaser.Geom.Circle.Contains); // Make station clickable
-
-        station.stationID = stationData.id;
-        stations.push(station); // Add station to the array
-        mapLayer.add(station);  // Add the station to the map layer 
-
-
-
-
-        // STATION NAME
+        // Display the station name
         this.add.text(stationData.x, stationData.y, stationData.name, {
             font: '16px Arial',
             fill: '#ffffff'
-        }).setOrigin(.5);
+        }).setOrigin(0.5);
 
-
-        // console.log("STATION DATA", stationData)
-        // Add locomotive if the station has one
+        // Check if this station has the locomotive
         if (stationData.hasLocomotive) {
-            //locomotive = this.add.image(stationData.x, stationData.y, 'locomotive');
             locomotive = this.add.rectangle(stationData.x, stationData.y, 50, 25, 0xE84393);
             locomotive.setScale(0.5);
             locomotive.setDepth(1);
             locomotive.setInteractive();
-            locomotive.currentStation = stationData.id; // Track which station the locomotive is at
+            locomotive.currentStation = stationData.id;
         }
 
-        // Find the initial station where the locomotive is located
-        const initialStation = stationPositions.find(station => station.hasLocomotive);
-
-        if (initialStation) {
-            // Set the locomotive's current station ID
-            locomotive.currentStation = initialStation.id;
-
-            // Show the station name and wagons in the info panel
-            //updateSidebar(initialStation.id, initialStation.name, initialStation.wagonTypes);
-            updateWagonPositions();
-            updateSidebarTrainGraphics();
-        }
-
-        // Initialize wagons array at the station
-        stationData.wagons = [];
-
+        // Initialize the bar chart for this station
         if (stationData.wagonTypes && stationData.wagonTypes.length > 0) {
-            createStationBarChart(stationData);  // Draw bar chart above the station
+            createStationBarChart(stationData);  // Draw initial bar chart above the station
         }
+
+        // Set up the `pointerdown` event for the station
+        station.on('pointerdown', () => {
+            console.log(`Clicked on station ${station.stationID}`);
+
+            // Update the sidebar with station info and make it visible
+            updateSidebar(stationData.id, stationData.name, stationData.wagonTypes);
+            showSidebar();
+
+            // Get the current station ID of the locomotive
+            const currentStationId = locomotive.currentStation;
+            const currentStationData = stationsData.find(s => s.id === currentStationId);
+            const isReachable = currentStationData.connections.includes(stationData.id);
+
+            // Check if the clicked station is reachable from the locomotive's current position
+            if (isReachable) {
+                currentTargetStation = stationData;
+
+                // Remove any existing "Go" button if it exists
+                if (goButtonCircle) goButtonCircle.destroy();
+                if (goButtonText) goButtonText.destroy();
+
+                // Create the "Go" button on the clicked station
+                const { buttonGraphics, buttonText } = createGoButton(stationData.x, stationData.y, this);
+                goButtonCircle = buttonGraphics;
+                goButtonText = buttonText;
+
+                // Set up the "Go" button click event to move the locomotive
+                goButtonCircle.on('pointerdown', () => {
+                    if (currentTargetStation) {
+                        moveLocomotive.call(this, currentStationId, currentTargetStation.id);
+
+                        // Clean up: Remove "Go" button after clicking
+                        goButtonCircle.destroy();
+                        goButtonText.destroy();
+                        goButtonCircle = null;
+                        goButtonText = null;
+                    }
+                });
+            } else {
+                console.log("This station is not reachable from the locomotive's current position.");
+            }
+        });
+
+        stations.push(station); // Add station to array for future reference if needed
     });
+
+
+
+
     const OFFSET = 15; // Distance to offset the track lines from station centers
 
     // Step 2: Draw track lines between connected stations
@@ -534,9 +574,9 @@ function create() {
     //Math.sin(angle) - how much to move in the Y direction
     // from A to B
 
-    stationPositions.forEach(stationData => {
+    stationsData.forEach(stationData => {
         stationData.connections.forEach(connectedStationId => {
-            const connectedStationData = stationPositions.find(s => s.id === connectedStationId); // Find connected station
+            const connectedStationData = stationsData.find(s => s.id === connectedStationId); // Find connected station
 
             if (connectedStationData) {
                 const stationA = { x: stationData.x, y: stationData.y }; // Current station coordinates
@@ -562,44 +602,13 @@ function create() {
         });
     });
 
-    /*
-stationPositions.forEach(stationData => {
-    stationData.connections.forEach(connectedStationId => {
-        const connectedStationData = stationPositions.find(s => s.id === connectedStationId); // Find connected station
-
-        // Only draw the line if the connected station ID is greater, to avoid drawing duplicates
-        if (connectedStationData && connectedStationData.id > stationData.id) {
-            const stationA = { x: stationData.x, y: stationData.y }; // Current station coordinates
-            const stationB = { x: connectedStationData.x, y: connectedStationData.y }; // Connected station coordinates
-
-            // Apply a static offset to the start and end points of the line
-            const startX = stationA.x + OFFSET;
-            const startY = stationA.y + OFFSET;
-            const endX = stationB.x - OFFSET;
-            const endY = stationB.y - OFFSET;
-
-            // Draw the track line between stationA and stationB
-            let graphics = this.add.graphics();
-            graphics.lineStyle(4, 0x645452, 0.4); // Set line color and opacity
-            graphics.beginPath();
-            graphics.moveTo(startX, startY); // Move to start of the line (with offset)
-            graphics.lineTo(endX, endY); // Draw the line to the connected station (with offset)
-            graphics.strokePath(); // Finalize the line drawing
-        }
-    });
-});
-
-
-
-
-    */
 
     // Step 3: Function to move the locomotive between stations
     //TODO follow up wagons. which station they arrived (for correct decoupling)
 
     function moveLocomotive(fromStationId, toStationId) {
-        const fromStation = stationPositions.find(s => s.id === fromStationId); // Get current station
-        const toStation = stationPositions.find(s => s.id === toStationId); // Get destination station
+        const fromStation = stationsData.find(s => s.id === fromStationId); // Get current station
+        const toStation = stationsData.find(s => s.id === toStationId); // Get destination station
 
         if (!fromStation || !toStation) {
             console.log("Move failed: From or To station not found.");
@@ -640,6 +649,7 @@ stationPositions.forEach(stationData => {
                 updateStationBarChart(fromStation);
                 updateWagonPositions();
                 updateSidebarTrainGraphics();
+                //showSidebar()
             }
         });
     }
@@ -650,15 +660,15 @@ stationPositions.forEach(stationData => {
             return;
         }
 
-        // Create a new wagon object with map graphics and add it to `attachedWagons`
+        // Create a new wagon object with map graphics and add it to attachedWagons
         const newWagon = {
             wagonType,
             mapGraphic: this.add.circle(0, 0, 5, wagonColors[wagonType] || 0xFFFFFF).setDepth(1) // Circle graphic on map
         };
         attachedWagons.push(newWagon);
 
-        // Remove the first occurrence of the wagon type from the station's `wagonTypes` array
-        const station = stationPositions.find(s => s.id === stationID);
+        // Remove the first occurrence of the wagon type from the station's wagonTypes array
+        const station = stationsData.find(s => s.id === stationID);
         const wagonIndex = station.wagonTypes.indexOf(wagonType);
         if (wagonIndex > -1) {
             station.wagonTypes.splice(wagonIndex, 1); // Remove one instance of the attached wagon type
@@ -720,62 +730,6 @@ stationPositions.forEach(stationData => {
 
 
 
-    let currentTargetStation = null; // Track the target station
-    let goButtonCircle = null; // Reference for the "Go" button circle
-    let goButtonText = null; // Reference for the "Go" button text
-
-    stations.forEach(station => {
-        station.on('pointerdown', () => {
-            console.log(`Clicked on station ${station.stationID}`);
-
-            // Get data for the clicked station
-            const clickedStationData = stationPositions.find(s => s.id === station.stationID);
-
-            // Show station info in the info panel and ensure sidebar visibility
-            updateSidebar(clickedStationData.id, clickedStationData.name, clickedStationData.wagonTypes);
-
-            // Show sidebar immediately on station click
-            showSidebar();
-            console.log("Sidebar should now be visible:", sidebarLayer.visible);
-            // Get the current station ID of the locomotive
-            const currentStationId = locomotive.currentStation;
-
-            // Check if the clicked station is connected and reachable from the locomotive's current station
-            const currentStationData = stationPositions.find(s => s.id === currentStationId);
-            const isReachable = currentStationData.connections.includes(clickedStationData.id);
-
-            // Set current target station only if reachable
-            if (isReachable) {
-                currentTargetStation = clickedStationData;
-
-                // Remove existing "Go" button if it exists
-                if (goButtonCircle) goButtonCircle.destroy();
-                if (goButtonText) goButtonText.destroy();
-
-                // Create the "Go" button as a star on the clicked station
-                const { buttonGraphics, buttonText } = createGoButton(station.x, station.y, this);
-
-                // Update references for the "Go" button to the newly created graphics and text
-                goButtonCircle = buttonGraphics;
-                goButtonText = buttonText;
-
-                // Handle click on the "Go" button star
-                goButtonCircle.on('pointerdown', () => {
-                    if (currentTargetStation) {
-                        moveLocomotive.call(this, currentStationId, currentTargetStation.id); // Move the train
-
-                        // Clean up: Remove "Go" button and text after the train starts moving
-                        goButtonCircle.destroy();
-                        goButtonText.destroy();
-                        goButtonCircle = null;
-                        goButtonText = null;
-                    }
-                });
-            } else {
-                console.log("This station is not reachable from the locomotive's current position.");
-            }
-        });
-    });
 
 
 }

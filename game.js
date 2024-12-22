@@ -135,16 +135,16 @@ function create() {
 
     // Define station positions, connections, and which stations have wagons or locomotives
     const stationsData = [
-        { id: 1, x: 315, y: 131, name: "14", connections: [2], hasLocomotive: true, wagonTypes: ['train1', 'train1', 'train1', 'train2', 'train2'] },
-        { id: 2, x: 502, y: 109, name: "13", connections: [1, 4], hasLocomotive: false, wagonTypes: ['train4', 'train4', 'train4', 'train4', 'train4', 'train4', 'train1', 'train1', 'train1'] },
-        { id: 3, x: 344, y: 374, name: "24", connections: [], hasLocomotive: false, wagonTypes: [] },
-        { id: 4, x: 567, y: 203, name: "2", connections: [2, 5, 6], hasLocomotive: false, wagonTypes: ['train3', 'train3', 'train1'] },
-        { id: 5, x: 730, y: 221, name: "7", connections: [4], hasLocomotive: false, wagonTypes: ['train2', 'train2', 'train3'] },
-        { id: 6, x: 496, y: 259, name: "19", connections: [4, 7], hasLocomotive: false, wagonTypes: [] },
-        { id: 7, x: 456, y: 234, name: "16", connections: [6, 8], hasLocomotive: false, wagonTypes: [] },
+        { id: 1, x: 446, y: 81, name: "14", connections: [2], hasLocomotive: true, wagonTypes: ['train1', 'train1', 'train1', 'train2', 'train2'] },
+        { id: 2, x: 698, y: 164, name: "17", connections: [1, 4], hasLocomotive: false, wagonTypes: ['train4', 'train4', 'train4', 'train4', 'train4', 'train4', 'train1', 'train1', 'train1'] },
+        { id: 3, x: 493, y: 448, name: "24", connections: [], hasLocomotive: false, wagonTypes: [] },
+        { id: 4, x: 815, y: 191, name: "2", connections: [2, 5, 6], hasLocomotive: false, wagonTypes: ['train3', 'train3', 'train1'] },
+        { id: 5, x: 1044, y: 215, name: "7", connections: [4], hasLocomotive: false, wagonTypes: ['train2', 'train2', 'train3'] },
+        { id: 6, x: 710, y: 277, name: "19", connections: [4, 7], hasLocomotive: false, wagonTypes: [] },
+        { id: 7, x: 651, y: 234, name: "16", connections: [6, 8], hasLocomotive: false, wagonTypes: [] },
         { id: 8, x: 381, y: 263, name: "23", connections: [7, 9], hasLocomotive: false, wagonTypes: [] },
-        { id: 9, x: 455, y: 354, name: "25", connections: [8, 10], hasLocomotive: false, wagonTypes: ['train1'] },
-        { id: 10, x: 601, y: 447, name: "29", connections: [9], hasLocomotive: false, wagonTypes: [] }
+        { id: 9, x: 651, y: 431, name: "25", connections: [8, 10], hasLocomotive: false, wagonTypes: ['train1'] },
+        { id: 10, x: 998, y: 513, name: "30", connections: [9], hasLocomotive: false, wagonTypes: [] }
     ];
 
 
@@ -222,6 +222,8 @@ function create() {
                 console.log("Sidebar remains visible after delay");
             }
         });
+
+        updateSidebarTrainGraphics();
     };
 
     const hideSidebar = () => {
@@ -736,5 +738,5 @@ function create() {
 
 function update() {
     //DEBUG: Log pointer coordinates on the map for testing
-    //console.log(`Pointer X: ${this.input.mousePointer.worldX}, Pointer Y: ${this.input.mousePointer.worldY}`);
+    console.log(`Pointer X: ${this.input.mousePointer.worldX}, Pointer Y: ${this.input.mousePointer.worldY}`);
 }
